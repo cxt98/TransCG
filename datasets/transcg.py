@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image
 import torch.nn as nn
 from torch.utils.data import Dataset
-from utils.data_preparation import process_data
+from TransNet.network_utility.depthcompletion.TransCG.utils.data_preparation import process_data
 
 
 class TransCG(Dataset):

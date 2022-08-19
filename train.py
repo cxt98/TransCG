@@ -26,7 +26,7 @@ warnings.simplefilter("ignore", UserWarning)
 parser = argparse.ArgumentParser()
 parser.add_argument(
     '--cfg', '-c', 
-    default = os.path.join('configs', 'default.yaml'), 
+    default = os.path.join('./configs', 'default.yaml'), 
     help = 'path to the configuration file', 
     type = str
 )
@@ -53,7 +53,7 @@ else:
 
 logger.info('Building dataloaders ...')
 train_dataloader = builder.get_dataloader(split = 'train')
-test_dataloader = builder.get_dataloader(split = 'test')
+test_dataloader = builder.get_dataloader(split = 'test', ratio=0.05)
 
 logger.info('Checking checkpoints ...')
 start_epoch = 0
@@ -91,15 +91,17 @@ def train_one_epoch(epoch):
             optimizer.zero_grad()
             data_dict = to_device(data_dict, device)
             res = model(data_dict['rgb'], data_dict['depth'])
-            data_dict['pred'] = res
+            data_dict['pred'], data_dict['wmap'] = res
             loss_dict = criterion(data_dict)
             loss = loss_dict['loss']
             loss.backward()
             optimizer.step()
+            print_message = 'Epoch {}, loss: {:.5f}'.format(epoch + 1, loss.item())
             if 'smooth' in loss_dict.keys():
-                pbar.set_description('Epoch {}, loss: {:.8f}, smooth loss: {:.8f}'.format(epoch + 1, loss.item(), loss_dict['smooth'].item()))
-            else:
-                pbar.set_description('Epoch {}, loss: {:.8f}'.format(epoch + 1, loss.item()))
+                print_message += ', smooth: {:.5f}'.format(loss_dict['smooth'].item())
+            if 'weightmap' in loss_dict.keys():
+                print_message += ', wmap: {:.5f}'.format(loss_dict['weightmap'].item())
+            pbar.set_description(print_message)
             losses.append(loss.mean().item())
     mean_loss = np.stack(losses).mean()
     logger.info('Finish training process in epoch {}, mean training loss: {:.8f}'.format(epoch + 1, mean_loss))
@@ -118,15 +120,17 @@ def test_one_epoch(epoch):
                 time_start = perf_counter()
                 res = model(data_dict['rgb'], data_dict['depth'])
                 time_end = perf_counter()
-                data_dict['pred'] = res
+                data_dict['pred'], data_dict['wmap'] = res
                 loss_dict = criterion(data_dict)
                 loss = loss_dict['loss']
                 _ = metrics.evaluate_batch(data_dict, record = True)
             duration = time_end - time_start
+            print_message = 'Epoch {}, loss: {:.5f}'.format(epoch + 1, loss.item())
             if 'smooth' in loss_dict.keys():
-                pbar.set_description('Epoch {}, loss: {:.8f}, smooth loss: {:.8f}'.format(epoch + 1, loss.item(), loss_dict['smooth'].item()))
-            else:
-                pbar.set_description('Epoch {}, loss: {:.8f}'.format(epoch + 1, loss.item()))
+                print_message += ', smooth: {:.5f}'.format(loss_dict['smooth'].item())
+            if 'weightmap' in loss_dict.keys():
+                print_message += ', wmap: {:.5f}'.format(loss_dict['weightmap'].item())
+            pbar.set_description(print_message)
             losses.append(loss.item())
             running_time.append(duration)
     mean_loss = np.stack(losses).mean()

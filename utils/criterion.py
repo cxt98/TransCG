@@ -14,7 +14,7 @@ class Criterion(nn.Module):
     """
     Various type of criterions.
     """
-    def __init__(self, type, combined_smooth = False, **kwargs):
+    def __init__(self, type, combined_smooth = False, combined_weightmap=False, **kwargs):
         super(Criterion, self).__init__()
         self.epsilon = kwargs.get('epsilon', 1e-8)
         self.type = str.lower(type)
@@ -29,6 +29,9 @@ class Criterion(nn.Module):
             for milestone in self.combined_beta_decay_milestones:
                 if milestone <= self.cur_epoch:
                     self.combined_beta = self.combined_beta * self.combined_beta_decay
+        if combined_weightmap:
+            self.combined_weightmap = combined_weightmap
+            self.weight_weightmap = kwargs.get('weightmap_beta', 0.005)
         self.l2_loss = self.mse_loss
         self.masked_l2_loss = self.masked_mse_loss
         self.custom_masked_l2_loss = self.custom_masked_mse_loss
@@ -45,209 +48,70 @@ class Criterion(nn.Module):
                 self.combined_beta = self.combined_beta * self.combined_beta_decay
     
     def _l1(self, pred, gt):
-        """
-        L1 loss in pixel-wise representations.
-        """
         return torch.abs(pred - gt)
 
     def _l2(self, pred, gt):
-        """
-        L2 loss in pixel-wise representations.
-        """
         return (pred - gt) ** 2
     
     def _huber(self, pred, gt):
-        """
-        Huber loss in pixel-wise representations.
-        """
         delta = torch.abs(pred - gt)
         return torch.where(delta <= self.huber_k, delta ** 2 / 2, self.huber_k * delta - self.huber_k ** 2 / 2)
     
     def mse_loss(self, data_dict, *args, **kwargs):
-        """
-        MSE loss.
-
-        Parameters
-        ----------
-        
-        data_dict: the data dict for computing L2 loss.
-
-        Returns
-        -------
-
-        The MSE loss.
-        """
         pred = data_dict['pred']
         gt = data_dict['depth_gt']
         mask = data_dict['zero_mask']
         return safe_mean(self._l2(pred, gt), mask)
     
     def masked_mse_loss(self, data_dict, *args, **kwargs):
-        """
-        Masked MSE loss.
-        
-        Parameters
-        ----------
-        
-        data_dict: the data dict for computing L2 loss.
-
-        Returns
-        -------
-
-        The masked MSE loss.
-        """
         pred = data_dict['pred']
         gt = data_dict['depth_gt']
         mask = data_dict['initial_loss_mask']
         return safe_mean(self._l2(pred, gt), mask)
     
     def custom_masked_mse_loss(self, data_dict, *args, **kwargs):
-        """
-        Custom masked MSE loss.
-        
-        Parameters
-        ----------
-        
-        data_dict: the data dict for computing L2 loss.
-
-        Returns
-        -------
-
-        The custom masked MSE loss.
-        """
         pred = data_dict['pred']
         gt = data_dict['depth_gt']
         mask = data_dict['loss_mask']
         return safe_mean(self._l2(pred, gt), mask)
     
     def l1_loss(self, data_dict, *args, **kwargs):
-        """
-        L1 loss.
-
-        Parameters
-        ----------
-        
-        data_dict: the data dict for computing L1 loss.
-
-        Returns
-        -------
-
-        The L1 loss.
-        """
         pred = data_dict['pred']
         gt = data_dict['depth_gt']
         mask = data_dict['zero_mask']
         return safe_mean(self._l1(pred, gt), mask)
     
     def masked_l1_loss(self, data_dict, *args, **kwargs):
-        """
-        Masked L1 loss.
-        
-        Parameters
-        ----------
-        
-        data_dict: the data dict for computing L1 loss.
-
-        Returns
-        -------
-
-        The masked L1 loss.
-        """
         pred = data_dict['pred']
         gt = data_dict['depth_gt']
         mask = data_dict['initial_loss_mask']
         return safe_mean(self._l1(pred, gt), mask)
     
     def custom_masked_l1_loss(self, data_dict, *args, **kwargs):
-        """
-        Custom masked L1 loss.
-        
-        Parameters
-        ----------
-
-        data_dict: the data dict for computing L1 loss.
-
-        Returns
-        -------
-
-        The custom masked L1 loss.
-        """
         pred = data_dict['pred']
         gt = data_dict['depth_gt']
         mask = data_dict['loss_mask']
         return safe_mean(self._l1(pred, gt), mask)
     
     def huber_loss(self, data_dict, *args, **kwargs):
-        """
-        Huber loss.
-
-        Parameters
-        ----------
-        
-        data_dict: the data dict for computing huber loss.
-
-        Returns
-        -------
-
-        The huber loss.
-        """
         pred = data_dict['pred']
         gt = data_dict['depth_gt']
         mask = data_dict['zero_mask']
         return safe_mean(self._huber(pred, gt), mask)
 
     def masked_huber_loss(self, data_dict, *args, **kwargs):
-        """
-        Masked Huber loss.
-        
-        Parameters
-        ----------
-        
-        data_dict: the data dict for computing huber loss.
-
-        Returns
-        -------
-
-        The masked huber loss.
-        """
         pred = data_dict['pred']
         gt = data_dict['depth_gt']
         mask = data_dict['initial_loss_mask']
         return safe_mean(self._huber(pred, gt), mask)
     
     def custom_masked_huber_loss(self, data_dict, *args, **kwargs):
-        """
-        Custom masked huber loss.
-        
-        Parameters
-        ----------
-        
-        data_dict: the data dict for computing huber loss.
-
-        Returns
-        -------
-
-        The custom masked huber loss.
-        """
         pred = data_dict['pred']
         gt = data_dict['depth_gt']
         mask = data_dict['loss_mask']
         return safe_mean(self._huber(pred, gt), mask)
     
     def smooth_loss(self, data_dict, *args, **kwargs):
-        """
-        Smooth loss: surface normal loss.
-
-        Parameters
-        ----------
-        
-        data_dict: the data dict for computing smooth loss.
-
-        Returns
-        -------
-        
-        The smooth loss.
-        """
         # Fetch information from data dict
         pred = data_dict['pred']
         fx, fy, cx, cy = data_dict['fx'], data_dict['fy'], data_dict['cx'], data_dict['cy']
@@ -260,20 +124,16 @@ class Criterion(nn.Module):
         # masking
         return safe_mean(sn_loss, mask)
 
-    def forward(self, data_dict):
-        """
-        Calculate criterion given data dict.
-        
-        Parameters
-        ----------
-        
-        data_dict: the data dict for computing loss.
+    def weightmap_loss(self, data_dict, *args, **kwargs):
+        # higher value at low error pixels, weight := exp(-|error / 0.025|) 0.01 -> 0.67; 0.02 -> 0.45; 0.05 -> 0.13
+        pred = data_dict['pred']
+        gt = data_dict['depth_gt']
+        mask = data_dict['loss_mask']
+        wmap = data_dict['wmap']
+        errormap = torch.exp(-self._l1(pred, gt) / 0.025)
+        return safe_mean(self._l2(wmap, errormap), mask)
 
-        Returns
-        -------
-        
-        The pre-defined loss.
-        """
+    def forward(self, data_dict):
         loss_dict = {
             self.type: self.main_loss(data_dict)
         }
@@ -282,4 +142,7 @@ class Criterion(nn.Module):
             loss_dict['loss'] = loss_dict[self.type] + self.combined_beta * loss_dict['smooth']
         else:
             loss_dict['loss'] = loss_dict[self.type]
+        if self.combined_weightmap:
+            loss_dict['weightmap'] = self.weightmap_loss(data_dict)
+            loss_dict['loss'] = loss_dict[self.type] + self.weight_weightmap * loss_dict['weightmap']
         return loss_dict

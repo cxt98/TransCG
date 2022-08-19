@@ -161,6 +161,8 @@ def to_device(data_dict, device):
     The final data_dict.
     """
     for key in data_dict.keys():
+        if key == 'data_path':
+            continue
         data_dict[key] = data_dict[key].to(device)
     return data_dict
 

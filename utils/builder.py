@@ -7,6 +7,7 @@ import os
 import logging
 from utils.logger import ColoredLogger
 from torch.utils.data import ConcatDataset
+from datasets.clearpose_dataset import DepthCompletionDataset
 
 
 logging.setLoggerClass(ColoredLogger)
@@ -178,7 +179,7 @@ class ConfigBuilder(object):
             raise NotImplementedError('Invalid learning rate scheduler type.')
         return scheduler
     
-    def get_dataset(self, dataset_params = None, split = 'train'):
+    def get_dataset(self, dataset_params = None, split = 'train', ratio=1):
         """
         Get the dataset from configuration.
 
@@ -194,57 +195,18 @@ class ConfigBuilder(object):
         
         A torch.utils.data.Dataset item.
         """
-        from datasets.transcg import TransCG
-        from datasets.cleargrasp import ClearGraspRealWorld, ClearGraspSynthetic
-        from datasets.omniverse_object import OmniverseObject
-        from datasets.transparent_object import TransparentObject
         if dataset_params is None:
             dataset_params = self.dataset_params
         dataset_params = dataset_params.get(split, {'type': 'transcg'})
-        if type(dataset_params) == dict:
-            dataset_type = str.lower(dataset_params.get('type', 'transcg'))
-            if dataset_type == 'transcg':
-                dataset = TransCG(split = split, **dataset_params)
-            elif dataset_type == 'cleargrasp-real':
-                dataset = ClearGraspRealWorld(split = split, **dataset_params)
-            elif dataset_type == 'cleargrasp-syn':
-                dataset = ClearGraspSynthetic(split = split, **dataset_params)
-            elif dataset_type == 'omniverse':
-                dataset = OmniverseObject(split = split, **dataset_params)
-            elif dataset_type == 'transparent-object':
-                dataset = TransparentObject(split = split, **dataset_params)
-            else:
-                raise NotImplementedError('Invalid dataset type: {}.'.format(dataset_type))
-            logger.info('Load {} dataset as {}ing set with {} samples.'.format(dataset_type, split, len(dataset)))
-        elif type(dataset_params) == list:
-            dataset_types = []
-            dataset_list = []
-            for single_dataset_params in dataset_params:
-                dataset_type = str.lower(single_dataset_params.get('type', 'transcg'))
-                if dataset_type in dataset_types:
-                    raise AttributeError('Duplicate dataset found.')
-                else:
-                    dataset_types.append(dataset_type)
-                if dataset_type == 'transcg':
-                    dataset = TransCG(split = split, **single_dataset_params)
-                elif dataset_type == 'cleargrasp-real':
-                    dataset = ClearGraspRealWorld(split = split, **single_dataset_params)
-                elif dataset_type == 'cleargrasp-syn':
-                    dataset = ClearGraspSynthetic(split = split, **single_dataset_params)
-                elif dataset_type == 'omniverse':
-                    dataset = OmniverseObject(split = split, **single_dataset_params)
-                elif dataset_type == 'transparent-object':
-                    dataset = TransparentObject(split = split, **single_dataset_params)
-                else:
-                    raise NotImplementedError('Invalid dataset type: {}.'.format(dataset_type))
-                dataset_list.append(dataset)
-                logger.info('Load {} dataset as {}ing set with {} samples.'.format(dataset_type, split, len(dataset)))
-            dataset = ConcatDataset(dataset_list)
+        dataset_type = str.lower(dataset_params.get('type', 'transcg'))
+        if dataset_type == 'clearpose':
+            dataset = DepthCompletionDataset(dataset_name = split, args=None, ratio=ratio, **dataset_params)
         else:
-            raise AttributeError('Invalid dataset format.')
+            raise NotImplementedError('Invalid dataset type: {}.'.format(dataset_type))
+        logger.info('Load {} dataset as {}ing set with {} samples.'.format(dataset_type, split, len(dataset)))
         return dataset
     
-    def get_dataloader(self, dataset_params = None, split = 'train', batch_size = None, dataloader_params = None):
+    def get_dataloader(self, dataset_params = None, split = 'train', batch_size = None, dataloader_params = None, ratio = 1):
         """
         Get the dataloader from configuration.
 
@@ -272,7 +234,7 @@ class ConfigBuilder(object):
                 batch_size = self.trainer_params.get('test_batch_size', 1)
         if dataloader_params is None:
             dataloader_params = self.dataloader_params
-        dataset = self.get_dataset(dataset_params, split)
+        dataset = self.get_dataset(dataset_params, split, ratio)
         return DataLoader(
             dataset,
             batch_size = batch_size,

@@ -7,9 +7,7 @@ Ref:
 """
 import cv2
 import torch
-import Imath
 import random
-import OpenEXR
 import numpy as np
 from utils.functions import get_surface_normal_from_depth
 from utils.constants import DILATION_KERNEL
@@ -184,6 +182,7 @@ def process_depth(depth, camera_type = 0, depth_min = 0.3, depth_max = 1.5, dept
 
 
 def process_data(
+    data_path,
     rgb, 
     depth, 
     depth_gt, 
@@ -310,6 +309,7 @@ def process_data(
         loss_mask_dilated = zero_mask_dilated
 
     data_dict = {
+        'data_path': data_path,
         'rgb': torch.FloatTensor(rgb),
         'depth': torch.FloatTensor(depth),
         'depth_gt': torch.FloatTensor(depth_gt),
@@ -324,11 +324,12 @@ def process_data(
         'fx': torch.tensor(camera_intrinsics[0, 0]),
         'fy': torch.tensor(camera_intrinsics[1, 1]),
         'cx': torch.tensor(camera_intrinsics[0, 2]),
-        'cy': torch.tensor(camera_intrinsics[1, 2])
+        'cy': torch.tensor(camera_intrinsics[1, 2]),
+        'depth_original': torch.FloatTensor(depth_original)
     }
 
     if with_original:
-        data_dict['depth_original'] = torch.FloatTensor(depth_original)
+        # data_dict['depth_original'] = torch.FloatTensor(depth_original)
         data_dict['depth_gt_original'] = torch.FloatTensor(depth_gt_original)
         data_dict['depth_gt_mask_original'] = torch.BoolTensor(depth_gt_mask_original)
         data_dict['zero_mask_original'] = torch.BoolTensor(zero_mask_original)

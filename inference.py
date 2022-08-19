@@ -12,8 +12,8 @@ import warnings
 import numpy as np
 import torch.nn as nn
 from tqdm import tqdm
-from utils.logger import ColoredLogger
-from utils.builder import ConfigBuilder
+from TransNet.network_utility.depthcompletion.TransCG.utils.logger import ColoredLogger
+from TransNet.network_utility.depthcompletion.TransCG.utils.builder import ConfigBuilder
 from time import perf_counter
 
 
